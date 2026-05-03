@@ -14,13 +14,13 @@ RUN npx prisma generate
 RUN npm run build
 
 # Runtime stage
-FROM node:20.11-alpine as runtime
+FROM node:20.11-bullseye AS runtime
 
 WORKDIR /app
 
-RUN apk update && \
-    apk add --no-cache openssl && \
-    rm -rf /var/cache/apk/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy built files from the build stage
 COPY --from=build /app .
