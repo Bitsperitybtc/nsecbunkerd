@@ -2,7 +2,7 @@ version: "3.3"
 
 services:
   nsecbunkerd:
-    image: pablof7z/nsecbunkerd
+    image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     build: .
     restart: unless-stopped
     pids_limit: 100
@@ -18,7 +18,7 @@ services:
       - migrations
 
   migrations:
-    image: pablof7z/nsecbunkerd
+    image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     volumes:
       - $HOME/.nsecbunker-config:/app/config
     env_file:

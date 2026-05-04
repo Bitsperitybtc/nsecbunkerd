@@ -16,7 +16,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/kind-0/nsecbunkerd"
+    "url": "https://github.com/Bitsperitybtc/nsecbunkerd"
   },
   "scripts": {
     "build": "tsup src/index.ts; tsup src/daemon/index.ts -d dist/daemon; tsup src/client.ts -d dist/client",

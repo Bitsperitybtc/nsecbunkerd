@@ -4,6 +4,5 @@ release:
 	pnpm publish --no-git-checks
 
 docker:
-	docker build --no-cache -t pablof7z/nsecbunkerd .
-	docker push pablof7z/nsecbunkerd
-	ssh pablo@kind0 "docker pull pablof7z/nsecbunkerd"
+	docker build --no-cache -t ghcr.io/bitsperitybtc/nsecbunkerd:latest .
+	docker push ghcr.io/bitsperitybtc/nsecbunkerd:latest
