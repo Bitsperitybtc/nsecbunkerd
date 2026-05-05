@@ -56,17 +56,28 @@ class AdminInterface {
             signer: new NDKPrivateKeySigner(opts.key),
         });
         this.ndk.signer?.user().then((user: NDKUser) => {
-            let connectionString = `bunker://${user.npub}`;
-
+            // NIP-46: bunker://<remote-signer-pubkey-hex>?relay=<wss-url>&relay=…
+            // (npub@host legacy strings break many clients when multiple relays are comma-joined in "hostname".)
+            let connectionString = `bunker://${user.pubkey}`;
             if (opts.adminRelays.length > 0) {
-                connectionString += '@' + encodeURIComponent(`${opts.adminRelays.join(',').replace(/wss:\/\//g, '')}`);
+                const params = new URLSearchParams();
+                for (const r of opts.adminRelays) {
+                    const trimmed = r.trim();
+                    const wss =
+                        trimmed.startsWith('wss://') || trimmed.startsWith('ws://')
+                            ? trimmed
+                            : `wss://${trimmed.replace(/^\/+/, '')}`;
+                    params.append('relay', wss);
+                }
+                connectionString += `?${params.toString()}`;
             }
 
-            console.log(`\n\nnsecBunker connection string:\n\n${connectionString}\n\n`);
+            console.log(
+                `\n\nnsecBunker admin connection (app.nsecbunker.com / RPC management):\n\n${connectionString}\n\n`
+            );
 
-            // write connection string to connection.txt
-            const configFolder = path.dirname(configFile)
-            fs.writeFileSync(path.join(configFolder, 'connection.txt'), connectionString);
+            const configFolder = path.dirname(configFile);
+            fs.writeFileSync(path.join(configFolder, 'admin-connection.txt'), connectionString);
 
             this.signerUser = user;
 

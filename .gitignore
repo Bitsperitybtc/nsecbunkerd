@@ -5,7 +5,9 @@ dist
 **/*.d.ts.map
 nsecbunker.json
 connection.txt
+admin-connection.txt
 config
 .env
+signer-identity.txt
 .turbo
 prisma

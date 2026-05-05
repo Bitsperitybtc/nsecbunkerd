@@ -1,5 +1,9 @@
 version: "3.3"
 
+secrets:
+  signer_identity:
+    file: ./signer-identity.txt
+
 services:
   nsecbunkerd:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
@@ -8,10 +12,17 @@ services:
     pids_limit: 100
     mem_limit: 256mb
     memswap_limit: 256mb
+    secrets:
+      - signer_identity
     volumes:
       - $HOME/.nsecbunker-config:/app/config
+      - ./scripts/docker-entrypoint.sh:/app/scripts/docker-entrypoint.sh:ro
     env_file:
       - .env
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/docker-entrypoint.sh
+    # Host port must match the port in `baseUrl` (see config/nsecbunker.json on the mounted volume).
     ports:
       - "3000:3000"
     depends_on:
