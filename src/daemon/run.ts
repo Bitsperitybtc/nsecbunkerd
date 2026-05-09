@@ -247,21 +247,23 @@ class Daemon {
         }
 
         const raw = unlocked[keyName]!.trim();
-        let skHex: string;
+        let skBytes: Uint8Array;
         if (raw.startsWith('nsec1')) {
             const decoded = nip19.decode(raw);
-            if (decoded.type !== 'nsec' || typeof decoded.data !== 'string') {
+            if (decoded.type !== 'nsec') {
                 console.warn(`⚠️ Could not decode nsec for "${keyName}"; skipping connection.txt`);
                 return;
             }
-            skHex = decoded.data;
+            skBytes = typeof decoded.data === 'string'
+                ? new Uint8Array(Buffer.from(decoded.data, 'hex'))
+                : decoded.data;
         } else {
-            skHex = raw;
+            skBytes = new Uint8Array(Buffer.from(raw, 'hex'));
         }
 
         let pubHex: string;
         try {
-            pubHex = getPublicKey(skHex);
+            pubHex = getPublicKey(skBytes);
         } catch (e) {
             console.warn(`⚠️ Could not derive pubkey for "${keyName}"; skipping connection.txt`, e);
             return;

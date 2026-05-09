@@ -154,6 +154,19 @@ export async function processRequestWebHandler(request, reply) {
             undefined,
             allowScope
         );
+        // NIP-46 / NDK use nip44_* / nip04_* method names; ACL matches exact strings.
+        // Without these rows, gift wrap / DMs fail with "Not authorized" after connect alone.
+        debug("connect, adding nip44 and nip04 encryption capabilities");
+        for (const m of ["nip44_encrypt", "nip44_decrypt", "nip04_encrypt", "nip04_decrypt"] as const) {
+            await allowAllRequestsFromKey(
+                record.remotePubkey,
+                record.keyName,
+                m,
+                undefined,
+                undefined,
+                allowScope
+            );
+        }
     }
 
     return { ok: true, pubkey: userRecord.pubkey };
