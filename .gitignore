@@ -11,3 +11,4 @@ config
 signer-identity.txt
 .turbo
 prisma
+signer-identity.txt

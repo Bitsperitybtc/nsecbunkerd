@@ -1,6 +1,8 @@
 # nsecbunkerd
 Daemon to remotely sign nostr events using keys.
 
+For a full Docker walkthrough, including the signing identity, bunker identity, admin identity, and one-time key import step, see [SETUP-GUIDE.md](./SETUP-GUIDE.md).
+
 ## Easy setup via docker compose
 
 To quickly install `nsecbunkerd` via Docker just run:
