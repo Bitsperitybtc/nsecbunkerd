@@ -39,6 +39,8 @@ const allowNewKeys = true;
  */
 class AdminInterface {
     private npubs: string[];
+    /** Same URLs as the admin NDK — used for boot DM notifications instead of hardcoded third-party relays. */
+    private readonly adminRelays: string[];
     private ndk: NDK;
     private signerUser?: NDKUser;
     readonly rpc: NDKNostrRpc;
@@ -51,22 +53,34 @@ class AdminInterface {
     constructor(opts: IAdminOpts, configFile: string) {
         this.configFile = configFile;
         this.npubs = opts.npubs||[];
+        this.adminRelays = opts.adminRelays ?? [];
         this.ndk = new NDK({
             explicitRelayUrls: opts.adminRelays,
             signer: new NDKPrivateKeySigner(opts.key),
         });
         this.ndk.signer?.user().then((user: NDKUser) => {
-            let connectionString = `bunker://${user.npub}`;
-
+            // NIP-46: bunker://<remote-signer-pubkey-hex>?relay=<wss-url>&relay=…
+            // (npub@host legacy strings break many clients when multiple relays are comma-joined in "hostname".)
+            let connectionString = `bunker://${user.pubkey}`;
             if (opts.adminRelays.length > 0) {
-                connectionString += '@' + encodeURIComponent(`${opts.adminRelays.join(',').replace(/wss:\/\//g, '')}`);
+                const params = new URLSearchParams();
+                for (const r of opts.adminRelays) {
+                    const trimmed = r.trim();
+                    const wss =
+                        trimmed.startsWith('wss://') || trimmed.startsWith('ws://')
+                            ? trimmed
+                            : `wss://${trimmed.replace(/^\/+/, '')}`;
+                    params.append('relay', wss);
+                }
+                connectionString += `?${params.toString()}`;
             }
 
-            console.log(`\n\nnsecBunker connection string:\n\n${connectionString}\n\n`);
+            console.log(
+                `\n\nnsecBunker admin connection (app.nsecbunker.com / RPC management):\n\n${connectionString}\n\n`
+            );
 
-            // write connection string to connection.txt
-            const configFolder = path.dirname(configFile)
-            fs.writeFileSync(path.join(configFolder, 'connection.txt'), connectionString);
+            const configFolder = path.dirname(configFile);
+            fs.writeFileSync(path.join(configFolder, 'admin-connection.txt'), connectionString);
 
             this.signerUser = user;
 
@@ -87,14 +101,26 @@ class AdminInterface {
     }
 
     private async notifyAdminsOfNewConnection(connectionString: string) {
-        const blastrNdk = new NDK({
-            explicitRelayUrls: ['wss://blastr.f7z.xyz', 'wss://nostr.mutinywallet.com'],
+        // Historically this used wss://blastr.f7z.xyz (+ mutiny), which often fails from Docker or when the relay is slow.
+        // Use the same relay list as the admin interface so boot DMs match your deployment.
+        const relayUrls =
+            this.adminRelays.length > 0
+                ? this.adminRelays
+                : ['wss://nos.lol', 'wss://relay.damus.io'];
+
+        const notifyNdk = new NDK({
+            explicitRelayUrls: relayUrls,
             signer: this.ndk.signer
         });
-        await blastrNdk.connect(2500);
+        try {
+            await notifyNdk.connect(8000);
+        } catch (e) {
+            debug('notifyAdminsOfNewConnection: relay connect failed', e);
+            return;
+        }
 
-        for (const npub of this.npubs||[]) {
-            dmUser(blastrNdk, npub, `nsecBunker has started; use ${connectionString} to connect to it and unlock your key(s)`);
+        for (const npub of this.npubs || []) {
+            void dmUser(notifyNdk, npub, `nsecBunker has started; use ${connectionString} to connect to it and unlock your key(s)`);
         }
     }
 

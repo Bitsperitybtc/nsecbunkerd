@@ -1,6 +1,8 @@
 # nsecbunkerd
 Daemon to remotely sign nostr events using keys.
 
+For a full Docker walkthrough, including the signing identity, bunker identity, admin identity, and one-time key import step, see [SETUP-GUIDE.md](./SETUP-GUIDE.md).
+
 ## Easy setup via docker compose
 
 To quickly install `nsecbunkerd` via Docker just run:
@@ -15,7 +17,9 @@ To quickly install `nsecbunkerd` via Docker just run:
 
 - Clone `.env.example` and add your nostr public key to `ADMIN_NPUBS` to the `.env` file.
 
-- Change `DATABASE_URL` if necessary.
+- Change `DATABASE_URL` if necessary (for Compose, use `file:/app/config/nsecbunker.db` as in `.env.example`).
+
+- For **encrypted signing keys**, put a `signer-identity.txt` next to `docker-compose.yml` (gitignored): a line `encryption_passphrase=…`, same format as in the nsecbunkerd-local setup. Set `NSECBUNKER_KEY_NAME` in `.env` to the key name in `nsecbunker.json`. Compose mounts it as a Docker secret and pipes it to `start --key …`.
 
 ```shell
 cp .env.example .env
@@ -37,16 +41,20 @@ docker compose up -d
 ```
 
 
-### Get the connection string
+### Get connection strings
 
 ```shell
+# NIP-46 signing (Bitspark, other clients) — bunker's *user* key + `nostr.relays`
 docker compose exec nsecbunkerd cat /app/config/connection.txt
+
+# Admin / app.nsecbunker.com — management RPC signer + `adminRelays`
+docker compose exec nsecbunkerd cat /app/config/admin-connection.txt
 ```
 
-nsecBunker will give you a connection string like:
+nsecBunker will give you a connection string like (NIP-46 `bunker://<hex>?relay=…`):
 
 ```
-bunker://npub1tj2dmc4udvgafxxxxxxxrtgne8j8l6rgrnaykzc8sys9mzfcz@relay.nsecbunker.com
+bunker://<64-hex-remote-signer-pubkey>?relay=wss%3A%2F%2Frelay.example.com%2F
 ```
 
 You can visit https://app.nsecbunker.com/ to administrate your nsecBunker remotely, or explore `nsecbunkerd`'s CLI

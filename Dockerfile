@@ -1,4 +1,4 @@
-FROM node:20.11-bullseye AS build
+FROM node:22-bullseye AS build
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Runtime stage
-FROM node:20.11-bullseye AS runtime
+FROM node:22-bullseye AS runtime
 
 WORKDIR /app
 

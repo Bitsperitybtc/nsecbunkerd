@@ -1,5 +1,7 @@
 import NDK, { NDKPrivateKeySigner, Nip46PermitCallback, Nip46PermitCallbackParams } from '@nostr-dev-kit/ndk';
-import { nip19 } from 'nostr-tools';
+import fs from 'fs';
+import path from 'path';
+import { getPublicKey, nip19 } from 'nostr-tools';
 import { Backend } from './backend/index.js';
 import {
     IMethod,
@@ -215,8 +217,73 @@ class Daemon {
         await this.ndk.connect(5000);
         await this.startWebAuth();
         await this.startKeys();
+        this.writeClientNip46ConnectionUri();
 
         console.log('✅ nsecBunker ready to serve requests.');
+    }
+
+    /**
+     * NIP-46 clients (Bitspark, etc.) must use the *signing* key pubkey and `nostr.relays`,
+     * not the admin signer — see admin-connection.txt for app.nsecbunker.com.
+     */
+    private writeClientNip46ConnectionUri() {
+        const unlocked = this.activeKeys as Record<string, string>;
+        const names = Object.keys(unlocked).sort();
+        if (names.length === 0) {
+            return;
+        }
+
+        const relays = this.config.nostr?.relays ?? [];
+        if (relays.length === 0) {
+            console.warn('⚠️ No config.nostr.relays; skipping NIP-46 client connection.txt');
+            return;
+        }
+
+        const keyName = names[0]!;
+        if (names.length > 1) {
+            console.warn(
+                `⚠️ Multiple unlocked keys; connection.txt uses "${keyName}". Others: ${names.slice(1).join(', ')}`
+            );
+        }
+
+        const raw = unlocked[keyName]!.trim();
+        let skBytes: Uint8Array;
+        if (raw.startsWith('nsec1')) {
+            const decoded = nip19.decode(raw);
+            if (decoded.type !== 'nsec') {
+                console.warn(`⚠️ Could not decode nsec for "${keyName}"; skipping connection.txt`);
+                return;
+            }
+            skBytes = typeof decoded.data === 'string'
+                ? new Uint8Array(Buffer.from(decoded.data, 'hex'))
+                : decoded.data;
+        } else {
+            skBytes = new Uint8Array(Buffer.from(raw, 'hex'));
+        }
+
+        let pubHex: string;
+        try {
+            pubHex = getPublicKey(skBytes);
+        } catch (e) {
+            console.warn(`⚠️ Could not derive pubkey for "${keyName}"; skipping connection.txt`, e);
+            return;
+        }
+
+        const params = new URLSearchParams();
+        for (const r of relays) {
+            const trimmed = r.trim();
+            const wss =
+                trimmed.startsWith('wss://') || trimmed.startsWith('ws://')
+                    ? trimmed
+                    : `wss://${trimmed.replace(/^\/+/, '')}`;
+            params.append('relay', wss);
+        }
+
+        const uri = `bunker://${pubHex}?${params.toString()}`;
+        const dir = path.dirname(this.config.configFile);
+        fs.writeFileSync(path.join(dir, 'connection.txt'), uri);
+
+        console.log(`\n\nNIP-46 client connection (paste into Bitspark / NIP-46 clients):\n\n${uri}\n\n`);
     }
 
     /**
@@ -226,18 +293,22 @@ class Daemon {
      */
     async startKey(name: string, nsec: string) {
         const cb = signingAuthorizationCallback(name, this.adminInterface);
+        const trimmed = nsec.trim();
         let hexpk: string;
 
-        if (nsec.startsWith('nsec1')) {
+        if (trimmed.startsWith('nsec1')) {
             try {
-                const key = new NDKPrivateKeySigner(nsec);
-                hexpk = key.privateKey!;
-            } catch(e) {
+                const decoded = nip19.decode(trimmed);
+                if (decoded.type !== 'nsec') {
+                    throw new Error(`Expected nsec bech32, got ${decoded.type}`);
+                }
+                hexpk = decoded.data as string;
+            } catch (e) {
                 console.error(`Error loading key ${name}:`, e);
-                return
+                return;
             }
         } else {
-            hexpk = nsec;
+            hexpk = trimmed;
         }
         
         const backend = new Backend(this.ndk, this.fastify, hexpk, cb, this.config.baseUrl);
