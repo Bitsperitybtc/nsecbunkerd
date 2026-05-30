@@ -5,6 +5,14 @@ secrets:
     file: ./signer-identity.txt
 
 services:
+  relay:
+    image: scsibug/nostr-rs-relay:latest
+    profiles:
+      - local
+    ports:
+      - "7777:8080"
+    restart: unless-stopped
+
   nsecbunkerd:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     build: .
@@ -15,8 +23,11 @@ services:
     secrets:
       - signer_identity
     volumes:
-      - $HOME/.nsecbunker-config:/app/config
-      - ./scripts/docker-entrypoint.sh:/app/scripts/docker-entrypoint.sh:ro
+      - ${NSECBUNKER_CONFIG_DIR:-$HOME/.nsecbunker-config}:/app/config
+      - ./scripts:/app/scripts:ro
+    environment:
+      # DB lives on the mounted /app/config volume; this path is constant for Docker.
+      DATABASE_URL: "file:/app/config/nsecbunker.db"
     env_file:
       - .env
     entrypoint:
@@ -24,14 +35,16 @@ services:
       - /app/scripts/docker-entrypoint.sh
     # Host port must match the port in `baseUrl` (see config/nsecbunker.json on the mounted volume).
     ports:
-      - "3009:3000"
+      - "${NSECBUNKER_HOST_PORT:-3009}:3000"
     depends_on:
       - migrations
 
   migrations:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     volumes:
-      - $HOME/.nsecbunker-config:/app/config
+      - ${NSECBUNKER_CONFIG_DIR:-$HOME/.nsecbunker-config}:/app/config
+    environment:
+      DATABASE_URL: "file:/app/config/nsecbunker.db"
     env_file:
       - .env
     restart: no
