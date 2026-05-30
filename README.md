@@ -1,54 +1,32 @@
 # nsecbunkerd
 Daemon to remotely sign nostr events using keys.
 
-For a full Docker walkthrough, including the signing identity, bunker identity, admin identity, and one-time key import step, see [SETUP-GUIDE.md](./SETUP-GUIDE.md).
+For a step-by-step Docker walkthrough, follow the [Quickstart (SETUP-GUIDE.md)](./SETUP-GUIDE.md).
+For the concepts behind it — the signing identity, bunker identity, admin identity, the one-time key
+import step, and advanced/production configuration — see [SETUP-CONCEPTS.md](./SETUP-CONCEPTS.md).
 
-## Easy setup via docker compose
+## Easy setup via make
 
-To quickly install `nsecbunkerd` via Docker just run:
-
-### Configurations
-
-- Prepare your config directory
-
-  ```shell
-  mkdir $HOME/.nsecbunker-config
-  ```
-
-- Clone `.env.example` and add your nostr public key to `ADMIN_NPUBS` to the `.env` file.
-
-- Change `DATABASE_URL` if necessary (for Compose, use `file:/app/config/nsecbunker.db` as in `.env.example`).
-
-- For **encrypted signing keys**, put a `signer-identity.txt` next to `docker-compose.yml` (gitignored): a line `encryption_passphrase=…`, same format as in the nsecbunkerd-local setup. Set `NSECBUNKER_KEY_NAME` in `.env` to the key name in `nsecbunker.json`. Compose mounts it as a Docker secret and pipes it to `start --key …`.
+The `make` targets wrap the whole Docker flow. From the repo root:
 
 ```shell
-cp .env.example .env
+make build     # build the local image (first time only)
+make keygen    # generate a signing identity — SAVE the printed nsec
+make setup     # guided setup: import key, configure, start, create web-auth user
 ```
 
-### Start nsecbunkerd
-
-Create and start the project containers. This runs the migrations and then runs nsecbunkderd container.
-
-```shell
-# Optionally, build the image locally
-docker compose build nsecbunkerd
-
-# Start the project
-docker compose up
-
-# Or in the background
-docker compose up -d
-```
-
+`make setup` prompts for the few secrets it needs (admin npub, encryption passphrase, signing nsec,
+web-auth password) and prints your connection strings at the end. For the full walkthrough,
+non-interactive usage, and isolated `local` test stacks, see the
+[Quickstart (SETUP-GUIDE.md)](./SETUP-GUIDE.md).
 
 ### Get connection strings
 
 ```shell
-# NIP-46 signing (Bitspark, other clients) — bunker's *user* key + `nostr.relays`
-docker compose exec nsecbunkerd cat /app/config/connection.txt
-
-# Admin / app.nsecbunker.com — management RPC signer + `adminRelays`
-docker compose exec nsecbunkerd cat /app/config/admin-connection.txt
+make connection
+# or directly:
+docker compose exec nsecbunkerd cat /app/config/connection.txt        # NIP-46 signing clients
+docker compose exec nsecbunkerd cat /app/config/admin-connection.txt  # admin / app.nsecbunker.com
 ```
 
 nsecBunker will give you a connection string like (NIP-46 `bunker://<hex>?relay=…`):
