@@ -125,7 +125,7 @@ make restart       # restart
 make logs          # follow logs
 make ps            # status
 make connection    # print connection strings
-make relay-smoke   # publish + read back on the local relay (PROFILE=local)
+make relay-smoke   # publish + read back on the local relay (PROFILE=local; runs in Docker)
 make teardown      # stop and (after confirmation) remove this profile's config dir
 ```
 

@@ -2,7 +2,7 @@
 // Smoke-test the local Nostr relay: publish a kind-1 event and read it back.
 //
 // Env:
-//   RELAY_URL  (default ws://localhost:7777)
+//   RELAY_URL  (default ws://localhost:7777; make relay-smoke sets ws://relay:8080 in Docker)
 import WebSocket from 'ws';
 import { Relay } from 'nostr-tools/relay';
 import { finalizeEvent, generateSecretKey } from 'nostr-tools/pure';

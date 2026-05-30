@@ -11,6 +11,7 @@ ifeq ($(PROFILE),local)
   PROJECT    ?= nsecbunker-local
   HOST_PORT  ?= 3019
   RELAY      ?= ws://localhost:7777
+  RELAY_SMOKE_URL ?= ws://relay:8080
   export COMPOSE_PROFILES := local
 else
   CONFIG_DIR ?= $(HOME)/.nsecbunker-config
@@ -21,6 +22,7 @@ endif
 # --- Overridable knobs ------------------------------------------------------
 KEY_NAME   ?= bitspark@local
 RELAY      ?= wss://nos.lol
+RELAY_SMOKE_URL ?= $(RELAY)
 KEYGEN     ?= generic
 ADMIN_NPUBS ?=
 
@@ -83,8 +85,11 @@ connection:
 	@$(DC) exec -T nsecbunkerd cat /app/config/admin-connection.txt; echo
 
 relay-smoke:
-	@test -f node_modules/ws/package.json || npm install --omit=dev
-	@RELAY_URL="$(RELAY)" node scripts/relay-smoke.mjs
+	@$(DC) up -d relay
+	@$(DC) run --rm --no-deps \
+		-v "$(CURDIR)/scripts:/app/scripts:ro" \
+		-e RELAY_URL="$(RELAY_SMOKE_URL)" --entrypoint node nsecbunkerd \
+		/app/scripts/relay-smoke.mjs
 
 teardown:
 	-$(DC) down -v
