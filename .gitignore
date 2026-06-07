@@ -8,8 +8,7 @@ connection.txt
 admin-connection.txt
 config
 .env
-signer-identity.txt
+signer-identity*.txt
 .turbo
 prisma
-signer-identity.txt
 secrets

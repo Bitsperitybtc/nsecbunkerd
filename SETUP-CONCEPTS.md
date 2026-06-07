@@ -73,9 +73,10 @@ Configuration lives in a few places, and each one is read differently:
 | --- | --- | --- |
 | `docker-compose.yml` (`environment:`) | Docker Compose | `DATABASE_URL` — a **constant** (`file:/app/config/nsecbunker.db`) for Docker |
 | `.env` | Docker Compose | `ADMIN_NPUBS`, `NSECBUNKER_KEY_NAME` |
-| Shell env via `make` | Compose interpolation | `NSECBUNKER_CONFIG_DIR`, `NSECBUNKER_HOST_PORT`, `COMPOSE_PROJECT_NAME` (set per profile) |
-| `signer-identity.txt` | The Docker entrypoint (as a secret) | Only the `encryption_passphrase` line, to unlock the key on startup |
-| `nsecbunker.json` | nsecBunker itself | `nostr.relays`, `admin.adminRelays`, `baseUrl`, `authPort`, generated `admin.key`, encrypted keys |
+| `profiles/<name>.env` | `make` (included Makefile fragment) | Per-identity defaults: config dir, ports, relay URLs, signer file — no secrets |
+| Shell env via `make` | Compose interpolation | `NSECBUNKER_CONFIG_DIR`, `NSECBUNKER_HOST_PORT`, `COMPOSE_PROJECT_NAME`, `SIGNER_IDENTITY_FILE` (from active profile) |
+| `signer-identity*.txt` | The Docker entrypoint (as a secret) | Only the `encryption_passphrase` line, to unlock the key on startup (one file per profile) |
+| `nsecbunker.json` | nsecBunker itself | `nostr.relays`, `nostr.clientRelays`, `admin.adminRelays`, `admin.clientRelays`, `baseUrl`, `authPort`, generated `admin.key`, encrypted keys |
 
 Key consequences of this split:
 
@@ -93,9 +94,9 @@ Key consequences of this split:
 The host directory mounted at `/app/config` is parameterizable via `NSECBUNKER_CONFIG_DIR` (default
 `$HOME/.nsecbunker-config`). The app derives all its outputs — `connection.txt`,
 `admin-connection.txt`, the SQLite DB — from that one mounted directory, so pointing it elsewhere is
-enough to run fully isolated stacks. The `make` profiles do exactly this: `PROFILE=local` uses
-`$HOME/.nsecbunker-config-local` plus a distinct Compose project name and host port, so it can run
-alongside the default stack.
+enough to run fully isolated stacks. Profile files in `profiles/*.env` set these knobs per identity;
+`PROFILE=local` uses `$HOME/.nsecbunker-config-local`, port `3019`, and `signer-identity-local.txt`,
+so it can run alongside the default stack.
 
 ### Generating the signing key
 
@@ -110,8 +111,19 @@ The generated `nsec` is printed once and never written to disk — store it in y
 
 ## Relays
 
-- `nostr.relays` are used for the NIP-46 signing connection written to `connection.txt`.
-- `admin.adminRelays` are used for the admin RPC connection written to `admin-connection.txt`.
+The bunker and your browser often need **different relay URLs** when nsecBunker runs in Docker:
+
+| Config field | Who dials it | Typical `PROFILE=local` value |
+| --- | --- | --- |
+| `nostr.relays` / `admin.adminRelays` | The bunker container (NDK) | `ws://relay:8080` (Docker network) |
+| `nostr.clientRelays` / `admin.clientRelays` | Browser / Bitspark (in `connection.txt`) | `ws://<host-ip>:7777` |
+| `baseUrl` | Browser approval page | `http://<host-ip>:3019` |
+
+When `clientRelays` is omitted, `connection.txt` falls back to `nostr.relays` (fine for a public
+relay like `wss://nos.lol`, wrong for `ws://relay:8080`).
+
+`make setup` and `make patch-config` write these from the active profile's `RELAY`, `CLIENT_RELAY`,
+and `PUBLIC_BASE_URL` (see `profiles/local.env` and `DEV_HOST`).
 
 `app.nsecbunker.com` in logs is a UI label, not a relay URL.
 
@@ -209,9 +221,14 @@ key being protected. The local quickstart uses the same identity for both only t
   Don't set it in `.env` for Docker — a host path can cause Prisma
   `Error code 14: Unable to open the database file`, because `$HOME` inside the container is not your
   host home directory.
-- Relay settings are read from `$HOME/.nsecbunker-config/nsecbunker.json`, not `.env`.
-- `nostr.relays` controls the client signing connection; `admin.adminRelays` controls the admin RPC
-  connection.
+- Relay settings are read from `nsecbunker.json` on the mounted config volume, not `.env`. Re-apply
+  profile values with `make patch-config PROFILE=<name>`.
+- `nostr.clientRelays` (or `nostr.relays` when omitted) controls relays in `connection.txt`;
+  `admin.clientRelays` (or `admin.adminRelays`) controls `admin-connection.txt`. The bunker itself
+  always dials `nostr.relays` / `admin.adminRelays`.
+- With a Docker relay, do **not** put `ws://localhost:7777` in `nostr.relays` — inside the container
+  `localhost` is the container, not your host. Use `ws://relay:8080` for the bunker and
+  `CLIENT_RELAY=ws://<host-ip>:7777` for clients.
 - `app.nsecbunker.com` in logs is a UI label, not a relay URL.
 - If logs show `baseUrl undefined`, nsecBunker will not create a `/requests/<id>` browser approval
   page. It will ask the admin over Nostr instead.

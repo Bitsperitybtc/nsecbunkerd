@@ -20,6 +20,20 @@ web-auth password) and prints your connection strings at the end. For the full w
 non-interactive usage, and isolated `local` test stacks, see the
 [Quickstart (SETUP-GUIDE.md)](./SETUP-GUIDE.md).
 
+### Daily use (already configured)
+
+If you completed setup once, you only need to start and stop the stack:
+
+```shell
+make up          # start (default profile, port 3009)
+make down        # stop
+make connection  # print bunker:// URIs again
+```
+
+Use `PROFILE=local` for a second isolated stack (port 3019). See
+[SETUP-GUIDE.md — Already set up?](./SETUP-GUIDE.md#already-set-up-daily-use) for profiles, ports,
+and the full command list.
+
 ### Get connection strings
 
 ```shell

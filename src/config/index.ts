@@ -30,6 +30,8 @@ export interface DomainConfig {
 export interface IConfig {
     nostr: {
         relays: string[];
+        /** Browser/client-facing relays for connection.txt (defaults to relays when omitted). */
+        clientRelays?: string[];
     };
     admin: IAdminOpts;
     authPort?: number;

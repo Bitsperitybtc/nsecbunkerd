@@ -25,6 +25,8 @@ const debug = createDebug("nsecbunker:admin");
 export type IAdminOpts = {
     npubs: string[];
     adminRelays: string[];
+    /** Browser/client-facing relays for admin-connection.txt (defaults to adminRelays when omitted). */
+    clientRelays?: string[];
     key: string;
     notifyAdminsOnBoot?: boolean;
 }
@@ -61,10 +63,11 @@ class AdminInterface {
         this.ndk.signer?.user().then((user: NDKUser) => {
             // NIP-46: bunker://<remote-signer-pubkey-hex>?relay=<wss-url>&relay=…
             // (npub@host legacy strings break many clients when multiple relays are comma-joined in "hostname".)
+            const clientRelays = opts.clientRelays ?? opts.adminRelays;
             let connectionString = `bunker://${user.pubkey}`;
-            if (opts.adminRelays.length > 0) {
+            if (clientRelays.length > 0) {
                 const params = new URLSearchParams();
-                for (const r of opts.adminRelays) {
+                for (const r of clientRelays) {
                     const trimmed = r.trim();
                     const wss =
                         trimmed.startsWith('wss://') || trimmed.startsWith('ws://')

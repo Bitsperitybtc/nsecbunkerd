@@ -223,8 +223,9 @@ class Daemon {
     }
 
     /**
-     * NIP-46 clients (Bitspark, etc.) must use the *signing* key pubkey and `nostr.relays`,
-     * not the admin signer — see admin-connection.txt for app.nsecbunker.com.
+     * NIP-46 clients (Bitspark, etc.) must use the *signing* key pubkey and client-facing relays
+     * (`nostr.clientRelays`, or `nostr.relays` when clientRelays is omitted) — not the admin signer;
+     * see admin-connection.txt for app.nsecbunker.com.
      */
     private writeClientNip46ConnectionUri() {
         const unlocked = this.activeKeys as Record<string, string>;
@@ -233,9 +234,9 @@ class Daemon {
             return;
         }
 
-        const relays = this.config.nostr?.relays ?? [];
+        const relays = this.config.nostr?.clientRelays ?? this.config.nostr?.relays ?? [];
         if (relays.length === 0) {
-            console.warn('⚠️ No config.nostr.relays; skipping NIP-46 client connection.txt');
+            console.warn('⚠️ No nostr.relays (or clientRelays); skipping NIP-46 client connection.txt');
             return;
         }
 

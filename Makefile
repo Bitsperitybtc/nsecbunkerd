@@ -1,39 +1,38 @@
 SHELL := /bin/bash
 
 # --- Profiles ---------------------------------------------------------------
-# PROFILE=default (production-ish) or PROFILE=local (isolated test stack).
-# A profile is just a bundle of preset defaults; override any var on the CLI:
+# A profile is a config-file bundle in profiles/<name>.env. Pick one with
+# PROFILE=<name>; every variable can still be overridden on the CLI, e.g.:
 #   make setup PROFILE=local HOST_PORT=4000 KEY_NAME=test@local
+# Add a new identity by copying profiles/local.env to profiles/<name>.env.
 PROFILE ?= default
 
-ifeq ($(PROFILE),local)
-  CONFIG_DIR ?= $(HOME)/.nsecbunker-config-local
-  PROJECT    ?= nsecbunker-local
-  HOST_PORT  ?= 3019
-  RELAY      ?= ws://localhost:7777
-  RELAY_SMOKE_URL ?= ws://relay:8080
-  export COMPOSE_PROFILES := local
-else
-  CONFIG_DIR ?= $(HOME)/.nsecbunker-config
-  PROJECT    ?= nsecbunker
-  HOST_PORT  ?= 3009
+PROFILES := $(patsubst profiles/%.env,%,$(wildcard profiles/*.env))
+PROFILE_FILE := profiles/$(PROFILE).env
+ifeq ($(wildcard $(PROFILE_FILE)),)
+  $(error Unknown profile '$(PROFILE)': $(PROFILE_FILE) not found. Available: $(PROFILES))
 endif
+include $(PROFILE_FILE)
 
-# --- Overridable knobs ------------------------------------------------------
-KEY_NAME   ?= bitspark@local
-RELAY      ?= wss://nos.lol
-RELAY_SMOKE_URL ?= $(RELAY)
-KEYGEN     ?= generic
-ADMIN_NPUBS ?=
+# --- Non-profile defaults ---------------------------------------------------
+KEYGEN ?= generic
+
+# Start the bundled local relay (and the smoke target) only when the profile
+# opts in with LOCAL_RELAY=1. The Compose service is tagged `profiles: [local]`.
+ifeq ($(LOCAL_RELAY),1)
+  export COMPOSE_PROFILES := local
+endif
 
 # --- Exported to docker compose (interpolated in docker-compose.yml) --------
 export NSECBUNKER_CONFIG_DIR := $(CONFIG_DIR)
 export NSECBUNKER_HOST_PORT  := $(HOST_PORT)
 export COMPOSE_PROJECT_NAME  := $(PROJECT)
+export SIGNER_IDENTITY_FILE  := $(SIGNER_IDENTITY_FILE)
+export RELAY_HOST_PORT       := $(RELAY_HOST_PORT)
 
 DC := docker compose
 
-.PHONY: help keygen setup build up down restart logs ps connection teardown relay-smoke
+.PHONY: help keygen setup build up down restart logs ps connection web-auth-password patch-config teardown relay-smoke
 
 help:
 	@echo "nsecBunker — make targets"
@@ -46,21 +45,37 @@ help:
 	@echo "  make up|down|restart   Manage the stack"
 	@echo "  make logs|ps           Inspect the stack"
 	@echo "  make connection        Print connection.txt and admin-connection.txt"
+	@echo "  make patch-config      Re-apply relay/baseUrl settings from the active profile"
+	@echo "  make web-auth-password Reset the browser approval page password (WEB_AUTH_PASSWORD=...)"
 	@echo "  make relay-smoke       Publish + read back an event on the local relay (PROFILE=local)"
 	@echo "  make teardown          Stop the stack and (optionally) remove the config dir"
 	@echo ""
-	@echo "Profiles: PROFILE=default | local. Override knobs on the CLI, e.g.:"
+	@echo "Profiles (profiles/<name>.env): $(PROFILES)"
+	@echo "Pick with PROFILE=<name>; override any knob on the CLI, e.g.:"
 	@echo "  make setup PROFILE=local HOST_PORT=4000 KEY_NAME=test@local KEYGEN=nostr"
 	@echo ""
 	@echo "Active: PROFILE=$(PROFILE) dir=$(CONFIG_DIR) port=$(HOST_PORT) project=$(PROJECT)"
-	@echo "        key=$(KEY_NAME) relay=$(RELAY)"
+	@echo "        key=$(KEY_NAME) relay=$(RELAY) clientRelay=$(CLIENT_RELAY) baseUrl=$(PUBLIC_BASE_URL)"
+	@echo "        signer=$(SIGNER_IDENTITY_FILE) localRelay=$(LOCAL_RELAY)"
 
 keygen:
 	@mkdir -p "$(CONFIG_DIR)"
 	@$(DC) run --rm --no-deps -e KEYGEN=$(KEYGEN) --entrypoint sh nsecbunkerd /app/scripts/keygen.sh
 
 setup:
-	@KEY_NAME="$(KEY_NAME)" RELAY="$(RELAY)" ADMIN_NPUBS="$(ADMIN_NPUBS)" bash scripts/setup.sh
+	@KEY_NAME="$(KEY_NAME)" RELAY="$(RELAY)" CLIENT_RELAY="$(CLIENT_RELAY)" \
+	  PUBLIC_BASE_URL="$(PUBLIC_BASE_URL)" ADMIN_NPUBS="$(ADMIN_NPUBS)" bash scripts/setup.sh
+
+patch-config:
+	@echo "==> patching config (PROFILE=$(PROFILE))"
+	@$(DC) run --rm -T --no-deps --entrypoint "" \
+	  -e NSECBUNKER_RELAY="$(RELAY)" \
+	  -e NSECBUNKER_CLIENT_RELAY="$(CLIENT_RELAY)" \
+	  -e NSECBUNKER_PUBLIC_BASE_URL="$(PUBLIC_BASE_URL)" \
+	  -e NSECBUNKER_HOST_PORT="$(HOST_PORT)" \
+	  nsecbunkerd node /app/scripts/patch-config.mjs
+	@echo "==> restart nsecbunkerd to regenerate connection.txt"
+	@$(DC) restart nsecbunkerd
 
 build:
 	$(DC) build nsecbunkerd
@@ -81,8 +96,21 @@ ps:
 	$(DC) ps
 
 connection:
+	@if ! $(DC) ps --status running -q nsecbunkerd 2>/dev/null | grep -q .; then \
+	  echo "nsecbunkerd is not running for PROFILE=$(PROFILE) (project=$(PROJECT))." >&2; \
+	  echo "Available profiles: $(PROFILES)" >&2; \
+	  echo "Start it with: make up PROFILE=$(PROFILE)" >&2; \
+	  exit 1; \
+	fi
 	@$(DC) exec -T nsecbunkerd cat /app/config/connection.txt; echo
 	@$(DC) exec -T nsecbunkerd cat /app/config/admin-connection.txt; echo
+
+web-auth-password:
+	@if [ -z "$${WEB_AUTH_PASSWORD:-}" ]; then \
+	  read -r -s -p "New web auth password: " WEB_AUTH_PASSWORD; echo; \
+	fi; \
+	$(DC) exec -T -e WEB_AUTH_PASSWORD="$$WEB_AUTH_PASSWORD" nsecbunkerd \
+	  node /app/scripts/create-web-auth-user.mjs
 
 relay-smoke:
 	@$(DC) up -d relay

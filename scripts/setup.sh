@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Orchestrate a full nsecBunker setup. Intended to be invoked via `make setup`,
 # which exports the profile env (NSECBUNKER_CONFIG_DIR, NSECBUNKER_HOST_PORT,
-# COMPOSE_PROJECT_NAME) and passes KEY_NAME / RELAY / ADMIN_NPUBS.
+# COMPOSE_PROJECT_NAME, SIGNER_IDENTITY_FILE) and passes KEY_NAME / RELAY /
+# ADMIN_NPUBS.
 #
 # Secrets are read from the environment if present, otherwise prompted:
 #   PASSPHRASE          encryption passphrase for the signing nsec
@@ -17,9 +18,11 @@ CONFIG_DIR="${NSECBUNKER_CONFIG_DIR:?NSECBUNKER_CONFIG_DIR not set (use make)}"
 HOST_PORT="${NSECBUNKER_HOST_PORT:-3009}"
 KEY_NAME="${KEY_NAME:-bitspark@local}"
 RELAY="${RELAY:-wss://nos.lol}"
+CLIENT_RELAY="${CLIENT_RELAY:-}"
+PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"
 
 CONFIG_JSON="$CONFIG_DIR/nsecbunker.json"
-SIGNER_FILE="signer-identity.txt"
+SIGNER_FILE="${SIGNER_IDENTITY_FILE:-signer-identity.txt}"
 
 echo "==> nsecBunker setup (project=${COMPOSE_PROJECT_NAME:-nsecbunker} dir=$CONFIG_DIR port=$HOST_PORT key=$KEY_NAME)"
 mkdir -p "$CONFIG_DIR"
@@ -76,7 +79,10 @@ fi
 # --- 4. Patch relays + web auth into nsecbunker.json -----------------------
 echo "==> applying relay + web-auth settings"
 docker compose run --rm -T --no-deps --entrypoint "" \
-  -e NSECBUNKER_RELAY="$RELAY" -e NSECBUNKER_HOST_PORT="$HOST_PORT" \
+  -e NSECBUNKER_RELAY="$RELAY" \
+  -e NSECBUNKER_CLIENT_RELAY="${CLIENT_RELAY:-}" \
+  -e NSECBUNKER_PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}" \
+  -e NSECBUNKER_HOST_PORT="$HOST_PORT" \
   nsecbunkerd node /app/scripts/patch-config.mjs
 
 # --- 5. Start --------------------------------------------------------------
@@ -106,4 +112,4 @@ echo "--- connection.txt (signing clients) ---"
 docker compose exec -T nsecbunkerd cat /app/config/connection.txt; echo
 echo "--- admin-connection.txt (admin UI) ---"
 docker compose exec -T nsecbunkerd cat /app/config/admin-connection.txt; echo
-echo "==> browser approvals: http://localhost:$HOST_PORT/requests/<request-id>"
+echo "==> browser approvals: ${PUBLIC_BASE_URL:-http://localhost:$HOST_PORT}/requests/<request-id>"

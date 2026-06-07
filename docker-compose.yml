@@ -2,7 +2,9 @@ version: "3.3"
 
 secrets:
   signer_identity:
-    file: ./signer-identity.txt
+    # Per-profile signer file (passphrase that unlocks the encrypted keys).
+    # Set via SIGNER_IDENTITY_FILE in profiles/<name>.env; falls back to the default.
+    file: ${SIGNER_IDENTITY_FILE:-./signer-identity.txt}
 
 services:
   relay:
@@ -10,7 +12,7 @@ services:
     profiles:
       - local
     ports:
-      - "7777:8080"
+      - "${RELAY_HOST_PORT:-7777}:8080"
     restart: unless-stopped
 
   nsecbunkerd:
