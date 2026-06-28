@@ -1,0 +1,12 @@
+---
+description: Keep planning and branch work connected to Linear
+alwaysApply: true
+---
+
+# Linear-First Workflow
+
+- When a discussion becomes actionable work, check Linear for an existing issue before coding. If no suitable issue exists, create one or add a comment to the closest parent/project issue.
+- Tie implementation work to Linear identifiers in branch names, commit messages, PR text, or comments whenever practical.
+- Keep Linear status current when work meaningfully changes state: planned, started, blocked, validated, shipped, or deferred.
+- Capture unexpected pitfalls as Linear comments or follow-up issues if they affect future development, testing, or user workflows.
+- Do not create Linear noise for tiny clarifications; prefer a comment or note when the discussion is useful context but not its own task.
