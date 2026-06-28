@@ -184,6 +184,66 @@ For **Bitspark login**, paste **`connection.txt`** URI and use **web auth passwo
 
 ---
 
+## Close-out issues from commit / Linear sync
+
+### Disposable profile files are local artifacts
+
+`profiles/test3.env`, `profiles/test4.env`, and `profiles/test5.env` were generated while validating disposable stacks. They should **not** be committed:
+
+- They contain machine-specific LAN IPs and ports.
+- They represent throwaway signer/config identities.
+- The canonical committed profiles remain `profiles/default.env` and `profiles/local.env`.
+
+Action taken: `.gitignore` now excludes `profiles/test*.env` and `profiles/*-test.env`.
+
+### Linear-first workflow should be explicit
+
+We created `.cursor/rules/linear-first.mdc` so future sessions remember to involve Linear when discussion turns into actionable work.
+
+Working rule:
+
+- Check Linear before coding if the topic is actionable.
+- Create an issue or add a comment when there is no suitable tracker yet.
+- Keep issue status/comments aligned with planned, started, blocked, validated, shipped, or deferred work.
+- Tie commits and branch work back to Linear IDs where practical.
+
+Linear tracking created:
+
+- [NSEC-12](https://linear.app/bitspark/issue/NSEC-12/a6-polish-disposable-profile-ux-and-connection-output) — profile UX and connection output polish.
+- [NSEC-13](https://linear.app/bitspark/issue/NSEC-13/process-keep-nsecbunkerd-work-tied-to-linear) — Linear-first process rule; completed after committing the Cursor rule.
+- [NSEC-14](https://linear.app/bitspark/issue/NSEC-14/a7-simplify-docker-uid-and-config-ownership-handling) — simplify Docker UID/config ownership handling.
+
+### Validation friction
+
+`npm run build` initially failed because `node_modules` did not contain local dev binaries (`tsup: not found`). After `npm ci`, the build passed.
+
+Notes:
+
+- This was an environment/dependency-install issue, not a TypeScript compile failure.
+- `npm ci` reported existing audit warnings (18 locally; GitHub also reported default-branch vulnerabilities on push). We did not change dependencies in this session.
+- For future from-scratch validation, run `npm ci` before build unless dependencies are already installed.
+
+### Commit and push split
+
+Two commits were pushed to `fix/nip46-docker-signing-and-connection-uris`:
+
+- `bd767e0` — `feat(NSEC-2): streamline disposable profile setup`
+- `4f183ca` — `chore(NSEC-13): add Linear-first workflow rule`
+
+This split was useful because the first commit is product/DX behavior, while the second is process guidance.
+
+### Possible future doc split
+
+This file is still fine as a single session note, but if it grows, split by purpose:
+
+- `docs/PITFALLS.md` — recurring operational gotchas and fixes.
+- `docs/PROCESS.md` — Linear-first workflow, branching, commit hygiene.
+- `docs/SESSION-NOTES.md` — chronological notes and rationale from each working session.
+
+Keep `SETUP-GUIDE.md` as the user-facing “how to run it” doc, and keep `WORKING-NOTES.md` or its successors for “what we learned and why.”
+
+---
+
 ## Files touched this session (branch work)
 
 | Area | Files |
@@ -193,7 +253,7 @@ For **Bitspark login**, paste **`connection.txt`** URI and use **web auth passwo
 | Permissions | `scripts/docker-entrypoint.sh`, `scripts/migrate-entrypoint.sh`, `docker-compose.yml`, `setup.sh` |
 | Docs | `SETUP-GUIDE.md`, `README.md`, this file |
 
-Generated locally (do not commit): `profiles/test3.env`, `profiles/test4.env`, `signer-identity-test*.txt`, `~/.nsecbunker-config-test*`.
+Generated locally (do not commit): `profiles/test3.env`, `profiles/test4.env`, `profiles/test5.env`, `signer-identity-test*.txt`, `~/.nsecbunker-config-test*`.
 
 ---
 
