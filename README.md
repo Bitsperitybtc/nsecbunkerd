@@ -30,7 +30,8 @@ make down        # stop
 make connection  # print bunker:// URIs again
 ```
 
-Use `PROFILE=local` for a second isolated stack (port 3019). See
+Use `PROFILE=local` for a second isolated stack (port 3019). For arbitrary disposable stacks on
+new PCs or for testing, use `make profile-setup NAME=<name>`. See
 [SETUP-GUIDE.md — Already set up?](./SETUP-GUIDE.md#already-set-up-daily-use) for profiles, ports,
 and the full command list.
 

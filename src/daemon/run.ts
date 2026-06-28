@@ -217,6 +217,10 @@ class Daemon {
         await this.ndk.connect(5000);
         await this.startWebAuth();
         await this.startKeys();
+        // Reload from disk so clientRelays patched before start are picked up.
+        const fresh = await this.adminInterface.config();
+        this.config.nostr = fresh.nostr;
+        this.config.admin = fresh.admin;
         this.writeClientNip46ConnectionUri();
 
         console.log('✅ nsecBunker ready to serve requests.');

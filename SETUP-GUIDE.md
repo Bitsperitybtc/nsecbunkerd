@@ -138,6 +138,30 @@ make setup
 A **profile** is a config-file bundle in `profiles/<name>.env`. Pick one with `PROFILE=<name>`
 (defaults to `default`); every variable can still be overridden on the CLI.
 
+### Disposable profiles (recommended for new PCs / testing)
+
+Create, provision, and tear down an isolated stack without touching `default`, `local`, or
+any old setup:
+
+```shell
+make profile-setup NAME=pc2          # create profile + keygen + full setup
+make connection PROFILE=pc2          # print bunker:// URIs
+make down PROFILE=pc2              # stop (keeps data)
+make profile-destroy NAME=pc2 YES=1  # stop + remove config, signer file, profile file
+```
+
+`profile-setup` auto-picks ports, generates a fresh signing identity, and prints the `nsec`
+once. Reuse your admin npub from `.env` if present, or pass `ADMIN_NPUBS=npub1...`.
+
+To only scaffold the profile file without starting:
+
+```shell
+make profile-create NAME=pc2
+make setup PROFILE=pc2             # manual setup (paste nsec when prompted)
+```
+
+### Built-in profiles
+
 ```shell
 make setup                       # profile `default` (dir ~/.nsecbunker-config, port 3009)
 make setup PROFILE=local         # profile `local`   (dir ~/.nsecbunker-config-local, port 3019)
@@ -163,9 +187,10 @@ Because each profile uses its own config dir, host port, Compose project name, *
 profiles can run **at the same time** without interfering. Run `make help` to list available
 profiles and show the active one's resolved values.
 
-### Add another identity
+### Add another identity (advanced)
 
-Copy an existing profile and adjust the isolating knobs:
+Copy an existing profile and adjust the isolating knobs manually, or use `make profile-create`
+above for auto-generated ports and paths:
 
 ```shell
 cp profiles/local.env profiles/dev.env
@@ -212,10 +237,11 @@ make connection    # print connection strings
 make patch-config  # re-apply RELAY / CLIENT_RELAY / PUBLIC_BASE_URL from profile
 make relay-smoke   # publish + read back on the local relay (PROFILE=local; runs in Docker)
 make teardown      # stop and (after confirmation) remove this profile's config dir
+make profile-destroy NAME=pc2 YES=1  # fully remove a disposable profile
 ```
 
-`teardown` is profile-scoped, so wiping `local` never touches `default` — handy for repeatable
-clean-room testing.
+`teardown` and `profile-destroy` are profile-scoped, so wiping `local` or `pc2` never touches
+`default` — handy for repeatable clean-room testing.
 
 ## Troubleshooting
 
@@ -233,3 +259,4 @@ clean-room testing.
   `<username>@<domain>` from `NSECBUNKER_KEY_NAME` in `.env` (e.g. `bitspark@local`).
 
 For deeper explanations and more gotchas, see [SETUP-CONCEPTS.md](./SETUP-CONCEPTS.md).
+For session notes, pitfalls, and rationale behind tooling decisions, see [docs/WORKING-NOTES.md](./docs/WORKING-NOTES.md).

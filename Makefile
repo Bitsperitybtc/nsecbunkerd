@@ -29,10 +29,16 @@ export NSECBUNKER_HOST_PORT  := $(HOST_PORT)
 export COMPOSE_PROJECT_NAME  := $(PROJECT)
 export SIGNER_IDENTITY_FILE  := $(SIGNER_IDENTITY_FILE)
 export RELAY_HOST_PORT       := $(RELAY_HOST_PORT)
+export NSECBUNKER_KEY_NAME   := $(KEY_NAME)
+export DOCKER_UID            := $(shell id -u)
+export DOCKER_GID            := $(shell id -g)
+ifneq ($(strip $(ADMIN_NPUBS)),)
+export ADMIN_NPUBS
+endif
 
 DC := docker compose
 
-.PHONY: help keygen setup build up down restart logs ps connection web-auth-password patch-config teardown relay-smoke
+.PHONY: help keygen setup build up down restart logs ps connection web-auth-password patch-config teardown relay-smoke profile-create profile-setup profile-destroy
 
 help:
 	@echo "nsecBunker — make targets"
@@ -49,6 +55,9 @@ help:
 	@echo "  make web-auth-password Reset the browser approval page password (WEB_AUTH_PASSWORD=...)"
 	@echo "  make relay-smoke       Publish + read back an event on the local relay (PROFILE=local)"
 	@echo "  make teardown          Stop the stack and (optionally) remove the config dir"
+	@echo "  make profile-create    Create a disposable profile (NAME=pc2)"
+	@echo "  make profile-setup     Create + keygen + setup in one shot (NAME=pc2)"
+	@echo "  make profile-destroy   Stop and remove profile (NAME=pc2 YES=1)"
 	@echo ""
 	@echo "Profiles (profiles/<name>.env): $(PROFILES)"
 	@echo "Pick with PROFILE=<name>; override any knob on the CLI, e.g.:"
@@ -64,7 +73,8 @@ keygen:
 
 setup:
 	@KEY_NAME="$(KEY_NAME)" RELAY="$(RELAY)" CLIENT_RELAY="$(CLIENT_RELAY)" \
-	  PUBLIC_BASE_URL="$(PUBLIC_BASE_URL)" ADMIN_NPUBS="$(ADMIN_NPUBS)" bash scripts/setup.sh
+	  PUBLIC_BASE_URL="$(PUBLIC_BASE_URL)" ADMIN_NPUBS="$(ADMIN_NPUBS)" \
+	  SIGNER_IDENTITY_FILE="$(SIGNER_IDENTITY_FILE)" bash scripts/setup.sh
 
 patch-config:
 	@echo "==> patching config (PROFILE=$(PROFILE))"
@@ -102,6 +112,7 @@ connection:
 	  echo "Start it with: make up PROFILE=$(PROFILE)" >&2; \
 	  exit 1; \
 	fi
+	@$(DC) exec -T nsecbunkerd node /app/scripts/write-connection-uris.mjs 2>/dev/null || true
 	@$(DC) exec -T nsecbunkerd cat /app/config/connection.txt; echo
 	@$(DC) exec -T nsecbunkerd cat /app/config/admin-connection.txt; echo
 
@@ -121,9 +132,29 @@ relay-smoke:
 
 teardown:
 	-$(DC) down -v
-	@read -r -p "Remove config dir $(CONFIG_DIR)? [y/N] " ans; \
-	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
-		rm -rf "$(CONFIG_DIR)" && echo "removed $(CONFIG_DIR)"; \
+	@if [ "$(YES)" = "1" ]; then \
+	  rm -rf "$(CONFIG_DIR)" && echo "removed $(CONFIG_DIR)"; \
 	else \
-		echo "kept $(CONFIG_DIR)"; \
+	  read -r -p "Remove config dir $(CONFIG_DIR)? [y/N] " ans; \
+	  if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+	    rm -rf "$(CONFIG_DIR)" && echo "removed $(CONFIG_DIR)"; \
+	  else \
+	    echo "kept $(CONFIG_DIR)"; \
+	  fi; \
 	fi
+
+profile-create:
+	@if [ -z "$(NAME)" ]; then echo "NAME is required (e.g. make profile-create NAME=pc2)" >&2; exit 1; fi
+	@$(if $(filter command line,$(origin HOST_PORT)),export PROFILE_HOST_PORT=$(HOST_PORT);) \
+	$(if $(filter command line,$(origin RELAY_HOST_PORT)),export PROFILE_RELAY_HOST_PORT=$(RELAY_HOST_PORT);) \
+	$(if $(filter command line,$(origin DEV_HOST)),export DEV_HOST=$(DEV_HOST);) \
+	NAME="$(NAME)" bash scripts/profile.sh create
+
+profile-setup:
+	@if [ -z "$(NAME)" ]; then echo "NAME is required (e.g. make profile-setup NAME=pc2)" >&2; exit 1; fi
+	@$(if $(filter command line,$(origin ADMIN_NPUBS)),export ADMIN_NPUBS=$(ADMIN_NPUBS);) \
+	NAME="$(NAME)" KEYGEN="$(KEYGEN)" bash scripts/profile.sh setup
+
+profile-destroy:
+	@if [ -z "$(NAME)" ]; then echo "NAME is required (e.g. make profile-destroy NAME=pc2)" >&2; exit 1; fi
+	@NAME="$(NAME)" YES="$(YES)" bash scripts/profile.sh destroy

@@ -23,36 +23,41 @@ PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"
 
 CONFIG_JSON="$CONFIG_DIR/nsecbunker.json"
 SIGNER_FILE="${SIGNER_IDENTITY_FILE:-signer-identity.txt}"
+HOST_UID="${DOCKER_UID:-$(id -u)}"
+HOST_GID="${DOCKER_GID:-$(id -g)}"
+DOCKER_USER="${HOST_UID}:${HOST_GID}"
+
+fix_config_permissions() {
+  docker compose run --rm --no-deps --user root --entrypoint "" nsecbunkerd \
+    chown -R "${HOST_UID}:${HOST_GID}" /app/config 2>/dev/null || true
+}
 
 echo "==> nsecBunker setup (project=${COMPOSE_PROJECT_NAME:-nsecbunker} dir=$CONFIG_DIR port=$HOST_PORT key=$KEY_NAME)"
 mkdir -p "$CONFIG_DIR"
+fix_config_permissions
 
-# --- 1. .env ---------------------------------------------------------------
+# Export profile-scoped values so docker compose environment overrides repo .env.
+export NSECBUNKER_KEY_NAME="$KEY_NAME"
+
+# --- 1. .env (optional fallback for direct docker compose usage) -----------
 if [ ! -f .env ]; then
   cp .env.example .env
   echo "==> created .env from .env.example"
 fi
 
-set_env() {
-  local key="$1" val="$2"
-  if grep -q "^${key}=" .env; then
-    sed -i "s|^${key}=.*|${key}=${val}|" .env
-  else
-    printf '%s=%s\n' "$key" "$val" >> .env
-  fi
-}
-
-set_env NSECBUNKER_KEY_NAME "$KEY_NAME"
-
-if [ -n "${ADMIN_NPUBS:-}" ]; then
-  set_env ADMIN_NPUBS "$ADMIN_NPUBS"
-elif ! grep -q "^ADMIN_NPUBS=" .env; then
-  read -r -p "Admin npub (npub1...): " ADMIN_NPUBS
-  set_env ADMIN_NPUBS "$ADMIN_NPUBS"
+if [ -z "${ADMIN_NPUBS:-}" ] && grep -q '^ADMIN_NPUBS=' .env; then
+  ADMIN_NPUBS="$(grep '^ADMIN_NPUBS=' .env | cut -d= -f2- | tr -d '"')"
 fi
+if [ -z "${ADMIN_NPUBS:-}" ]; then
+  read -r -p "Admin npub (npub1...): " ADMIN_NPUBS
+fi
+export ADMIN_NPUBS
 
-# --- 2. signer-identity.txt (passphrase-only secret) -----------------------
-if [ -f "$SIGNER_FILE" ] && grep -q '^encryption_passphrase=' "$SIGNER_FILE"; then
+# --- 2. signer-identity file (passphrase-only secret) ----------------------
+if [ -n "${PASSPHRASE:-}" ] && [ -n "${NSEC:-}" ]; then
+  ( umask 077; printf '# nsecbunkerd signer secret - DO NOT COMMIT\nencryption_passphrase=%s\n' "$PASSPHRASE" > "$SIGNER_FILE" )
+  echo "==> wrote $SIGNER_FILE (automated setup)"
+elif [ -f "$SIGNER_FILE" ] && grep -q '^encryption_passphrase=' "$SIGNER_FILE"; then
   PASSPHRASE="$(sed -n 's/^encryption_passphrase=//p' "$SIGNER_FILE" | tr -d '\r')"
   echo "==> using existing $SIGNER_FILE"
 else
@@ -72,13 +77,13 @@ else
   fi
   echo "==> importing signing key (creates nsecbunker.json with generated admin key)"
   printf '%s\n%s\n' "$PASSPHRASE" "$NSEC" | \
-    docker compose run --rm -T --no-deps --entrypoint "" nsecbunkerd \
+    docker compose run --rm -T --no-deps --user "$DOCKER_USER" --entrypoint "" nsecbunkerd \
       node ./dist/index.js add --config /app/config/nsecbunker.json --name "$KEY_NAME"
 fi
 
 # --- 4. Patch relays + web auth into nsecbunker.json -----------------------
 echo "==> applying relay + web-auth settings"
-docker compose run --rm -T --no-deps --entrypoint "" \
+docker compose run --rm -T --no-deps --user "$DOCKER_USER" --entrypoint "" \
   -e NSECBUNKER_RELAY="$RELAY" \
   -e NSECBUNKER_CLIENT_RELAY="${CLIENT_RELAY:-}" \
   -e NSECBUNKER_PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}" \
@@ -98,6 +103,9 @@ for _ in $(seq 1 60); do
   printf '.'; sleep 1
 done
 
+echo "==> refreshing connection URIs (client-facing relays)"
+docker compose exec -T nsecbunkerd node /app/scripts/write-connection-uris.mjs
+
 # --- 7. Web auth user ------------------------------------------------------
 if [ -z "${WEB_AUTH_PASSWORD:-}" ]; then
   read -r -s -p "Choose a web auth password: " WEB_AUTH_PASSWORD; echo
@@ -113,3 +121,6 @@ docker compose exec -T nsecbunkerd cat /app/config/connection.txt; echo
 echo "--- admin-connection.txt (admin UI) ---"
 docker compose exec -T nsecbunkerd cat /app/config/admin-connection.txt; echo
 echo "==> browser approvals: ${PUBLIC_BASE_URL:-http://localhost:$HOST_PORT}/requests/<request-id>"
+
+# Fix ownership after docker compose run/up (belt-and-suspenders).
+fix_config_permissions

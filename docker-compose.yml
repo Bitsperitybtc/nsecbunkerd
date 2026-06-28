@@ -30,6 +30,11 @@ services:
     environment:
       # DB lives on the mounted /app/config volume; this path is constant for Docker.
       DATABASE_URL: "file:/app/config/nsecbunker.db"
+      # Profile-scoped values from `make` override repo .env when set.
+      NSECBUNKER_KEY_NAME: ${NSECBUNKER_KEY_NAME:-bitspark@local}
+      ADMIN_NPUBS: ${ADMIN_NPUBS:-}
+      DOCKER_UID: ${DOCKER_UID:-1000}
+      DOCKER_GID: ${DOCKER_GID:-1000}
     env_file:
       - .env
     entrypoint:
@@ -45,14 +50,14 @@ services:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     volumes:
       - ${NSECBUNKER_CONFIG_DIR:-$HOME/.nsecbunker-config}:/app/config
+      - ./scripts:/app/scripts:ro
     environment:
       DATABASE_URL: "file:/app/config/nsecbunker.db"
+      DOCKER_UID: ${DOCKER_UID:-1000}
+      DOCKER_GID: ${DOCKER_GID:-1000}
     env_file:
       - .env
     restart: no
-    entrypoint: ""
-    command:
-      - npx
-      - prisma
-      - migrate
-      - deploy
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/migrate-entrypoint.sh

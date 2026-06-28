@@ -12,3 +12,5 @@ signer-identity*.txt
 .turbo
 prisma
 secrets
+profiles/test*.env
+profiles/*-test.env
