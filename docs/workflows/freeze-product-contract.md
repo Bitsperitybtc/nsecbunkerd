@@ -22,10 +22,10 @@ Do **not** wait for Linear. Product freeze owns this; tickets own execution afte
 | Layer | Do | Do not |
 | --- | --- | --- |
 | Product | Short “what it is / happy path / what it is not.” Own file. | Mix must-lists into the product page. |
-| Contract | Job, protocol, must, must-not, v1 defaults, repo split. Own file. | A second strategy essay. |
+| Contract | Jobs (signer base + Bitspark Signer product), protocol, must, must-not, v1 defaults, repo split. Own file. | A second strategy essay. Collapse product convenience into the signer job. |
 | Protocol | One NIP-46 path everywhere. Local vs public = **which relay URL** (and whether the SPA already knows it). | A Bitspark-only HTTP `POST /sign`. A special “local auth” stack. |
 | Pairing | Mailbox + `connect` + Approve this client. Signing events is a later step. | Call pairing “login with password.” Equate it with how events are signed. |
-| Convenience | Local relay as default mailbox; inject **browser-facing** URL into the static SPA; optional open of signer UI when we know that URL. | Treat local relay as lock-in. Treat QR as the Umbrel happy path (node has no camera). |
+| Convenience | Local relay as default mailbox; inject **browser-facing** URL into the static SPA; optional open of signer UI when we know that URL. These are **product** (layer 4), not protocol. | Treat local relay as lock-in. Treat QR as the Umbrel happy path (node has no camera). Treat injection as required for the signer to work. |
 | Scope | New signer repo; nsecbunkerd = reference/interop. Hosted keys (custodial bunker we run) **out** unless a later explicit product decision. | Implement inside nsecbunkerd and “migrate later.” Keep Mode C as a v1 design driver. |
 
 ## Steps
@@ -37,7 +37,7 @@ Do **not** wait for Linear. Product freeze owns this; tickets own execution afte
 5. **Stop talking about rejected alternatives** once the protocol is agreed. HTTP signing is a must-not one-liner, not a live design thread.
 6. **Write two files** under `docs/umbrel-app/`:
    - `PRODUCT.md` — what it is (few paragraphs).
-   - `CONTRACT.md` — constraints an implementer cannot violate.
+   - `CONTRACT.md` — constraints an implementer cannot violate (signer vs product).
 7. **Park indefinitely** anything that is a different trust story (we hold keys) or a different device class (QR for a camera signer). Revisit only as a new product decision.
 8. **Only then** create the new git root / Linear tickets inside the contract.
 
@@ -47,6 +47,7 @@ Do **not** wait for Linear. Product freeze owns this; tickets own execution afte
 - Local Umbrel and public Bitspark are described as the **same** NIP-46 path.
 - Product and contract are separate files; strategy is not the spec.
 - Agreed protocol is not re-litigated in the next reply.
+- Contract splits **signer** (base) from **Bitspark Signer** (product). Convenience (inject, popup, branded button) is product.
 
 ## Stop
 

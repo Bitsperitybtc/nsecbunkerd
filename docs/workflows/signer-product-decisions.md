@@ -8,6 +8,8 @@ Linear issue execution (plan → implement → PR) starts **after** this workflo
 
 Enable people to use Bitspark **without assembling third-party signers we do not control**, while remaining **safe** (no long-lived `nsec` in the SPA) and **interoperable** (any NIP-46 signer still works).
 
+The enablement product sits on a complete NIP-46 signer. Do not design that signer as a Bitspark stub.
+
 Umbrel happy path: install the signer app and Bitspark, open Bitspark, done.
 
 Convenience options (local relay, same-node pairing) must not become the only way to sign.
@@ -25,21 +27,23 @@ Stop nsecbunkerd patching as the main thread. The pain is often **product shape*
 
 ## How decisions are made
 
-Separate four layers before choosing code:
+Separate four **decision** layers before choosing code:
 
 | Layer | Question | Example |
 | --- | --- | --- |
 | Job | Who are we enabling, on what machine? | Umbrel user; public Bitspark visitor with a home signer |
-| Protocol | What must Bitspark speak? | NIP-46 (`connect`, `sign_event`, NIP-44). Identity ≠ Lightning (NWC). |
+| Protocol | What must the signer speak? | NIP-46 (`connect`, `sign_event`, NIP-44). Identity ≠ Lightning (NWC). |
 | Deployment | Where do SPA, signer, and relay live? | Same node; public SPA + home signer; later hosted signer we operate |
 | Implementation | Which daemon/UI? | Thin NIP-46 signer with our UI; nsecbunkerd only as reference/interop |
+
+Those are not the software stack. Build order is signer → mailbox → packaging → Bitspark Signer (product). See [ARCHITECTURE.md](../umbrel-app/ARCHITECTURE.md) §0. The product name can be Bitspark Signer; layers under it must stand on their own.
 
 Rules:
 
 1. **Protocol over product.** Keep NIP-46. Do not invent a Bitspark-only HTTP signing API. Do not drop support for other NIP-46 signers in Bitspark.
 2. **Enablement over wrapping.** We would rather own a small signer that matches the job than ship nsecbunkerd’s admin RPC, `app.nsecbunker.com`, web-auth `User` rows, `create_account`, or LNBits.
 3. **Explain the protocol when it is unclear.** If “what is NIP-46” or “are all these stages required” is on the table, answer that before recommending a rewrite or a wrap.
-4. **Split nsecbunkerd stages from NIP-46 stages.** Required: hold an encrypted `nsec`, speak NIP-46, approve this client, use a relay both sides can reach. Not required for v1: hosted admin, username@domain bcrypt, OAuth-like `create_account`, NIP-05 provider, policies/tokens, mixing in Lightning.
+4. **Split nsecbunkerd stages from NIP-46 stages.** Required: hold an encrypted `nsec`, speak NIP-46, approve this client, use a relay both sides can reach. Not required for v1: hosted admin, username@domain bcrypt, OAuth-like `create_account`, NIP-05 provider, policies/tokens, mixing in Lightning. Not required to call the **signer** done: Bitspark button, Umbrel injection, `app_proxy`.
 5. **Stress-test the first convenient model.** Same-box Umbrel is the default onboarding story, not the whole design. Always ask: public Bitspark; signer we run; relay not only localhost; multi-user later.
 6. **Defaults are options.** Local relay is a convenient, safer mailbox for same-node use. Users must still be able to use a reachable/public relay. Multi-user is an extension (one identity + client ACL in v1), not a v1 feature and not a dead-end data model.
 7. **Custody is explicit.** A signer *we* host (many users) is a **different product**, not v1, and not a design driver. Do not pretend it is the same as “keys stay on the user’s Umbrel.” Other hosted bunkers already exist.
@@ -47,7 +51,7 @@ Rules:
 
 ## Steps
 
-1. **Name the job.** Who joins, from where (Umbrel node vs public site), what they must not have to bring (Amber, nsec.app, pasted bunker archaeology).
+1. **Name the jobs.** Base: a complete NIP-46 signer (any client). Product: who joins Bitspark, from where (Umbrel node vs public site), what they must not have to bring (Amber, nsec.app, pasted bunker archaeology). Do not collapse the product job into the signer.
 2. **Name the protocol needs.** What Bitspark already requests (NIP-46 methods/kinds, NWC separate). If the protocol is not shared understanding, explain it in plain language first.
 3. **List deployment modes** that must not break the protocol:
    - Same-node Bitspark + signer (primary Umbrel onboarding).
@@ -62,7 +66,9 @@ Rules:
 ## Quality bar
 
 - A newcomer can tell NIP-46 from nsecbunkerd after reading the write-up.
+- A newcomer can tell the **signer** (any NIP-46 client) from **Bitspark Signer** (the Umbrel product on top of it).
 - v1 can be “two Umbrel apps, done” without requiring a public relay, and Mode B is not impossible without a rewrite.
+- The signer bar can be proven with NDK (or any client) before Bitspark wiring.
 - No recommendation that puts a long-lived `nsec` in the Bitspark SPA as the default.
 - No recommendation that makes Lightning the signer’s job.
 - Local relay and multi-user are described as default/extension, not as lock-in or as v1 scope creep.

@@ -15,9 +15,22 @@ This document captures:
 - Bitspark is a static SPA. It must not hold a long-lived `nsec`.
 - Identity (Nostr signing) and wallet (Lightning / NWC) stay separate. This signer does not create LNBits wallets or replace NWC.
 - Bitspark already speaks **NIP-46**. It must keep working with **any** compliant remote signer (Amber, nsec.app, Alby, this app, …).
-- The Umbrel app **is a NIP-46 signer**, not a private Bitspark-only signing API.
+- The Umbrel app **is a NIP-46 signer**, not a private Bitspark-only signing API. **Bitspark Signer** is the product name on top of that signer.
 - nsecbunkerd is one existing NIP-46 implementation. It is **not** the product we want to ship as-is. It was built as a multi-tenant hosted bunker (admin RPC, `app.nsecbunker.com`, web-auth `User` rows, `create_account`, policies/tokens). That extra product is why local setup felt unusable.
 - Decision: **NIP-46 yes; nsecbunkerd’s product shape no; implement a small signer that speaks the same protocol.** Use nsecbunkerd as a reference and interop target.
+
+## Software stack (not the same as decision layers)
+
+Job / protocol / deployment / implementation in [signer-product-decisions.md](../workflows/signer-product-decisions.md) are how we decide. This is how we **build**. Each layer must stand without the ones above it.
+
+```text
+4. Product      Bitspark Signer: injected config, branded button, optional Approve popup, Mode A/B
+3. Packaging    Umbrel app_proxy, ports, volume
+2. Mailbox      bundled kind-24133 relay + two URL fields
+1. Signer       nsec, ACL, NIP-46, Approve UI — any NIP-46 client
+```
+
+The shipped app can be called Bitspark Signer. Layers 1–2 must already be a real remote signer (pair and sign with NDK or any other client) before Bitspark or Umbrel enter the loop.
 
 ## What NIP-46 is (short)
 
@@ -62,7 +75,7 @@ NIP-46 exists precisely so an **untrusted public website** can use a **signer th
 
 ## Deployment modes
 
-Same signer implementation, different where Bitspark and the relay live. Do not fork the protocol per mode.
+Modes A and B are how the **product** uses the signer. They are not the shape of the daemon. Same signer implementation; different where Bitspark and the relay live. Do not fork the protocol per mode.
 
 ```text
                     ┌─────────────────────────┐
@@ -93,7 +106,7 @@ Primary onboarding.
 - Install signer app (creates/import one identity, backup once).
 - Install Bitspark app.
 - Local relay on the node; both apps use it by default.
-- Pairing: same-node discovery or `nostrconnect`, not paste-URI as the happy path.
+- Pairing: Umbrel injects the browser-facing mailbox (and optional signer UI URL); `nostrconnect`, not paste-URI as the happy path. Paste still works if injection is missing or for any other client.
 - First launch: one approval, “Bitspark on this node may sign as this identity.”
 - After that, signing is quiet unless a **new** client appears.
 
@@ -194,21 +207,26 @@ Drop / do not ship as the happy path:
 
 Do not repackage nsecbunkerd and “fix UX” as the plan. The UX problems are the product shape. A small new daemon that Bitspark’s existing NIP-46 client can talk to is the plan. nsecbunkerd remains useful to test against (“strict bunker” behaviour, `connect` param order).
 
-## v1 requirements (signer Umbrel app)
+## v1 requirements
 
-**Must**
+**Must — signer (base)**
 
 - Generate or import one `nsec`; encrypt at rest; show backup once.
-- Speak NIP-46: `connect`, `get_public_key`, `sign_event` (Bitspark kinds), `nip44_encrypt` / `nip44_decrypt`, `ping`.
-- First-run pairing with Bitspark via `nostrconnect://`; `bunker://` available.
+- Speak NIP-46: `connect`, `get_public_key`, `sign_event` (including kind 13), `nip44_encrypt` / `nip44_decrypt`, `ping`.
+- Pairing via `nostrconnect://`; `bunker://` available.
 - Approve/deny/revoke clients in **this app’s UI** (not a hosted admin SPA).
-- Default to a **local relay** when Bitspark is on the same node.
-- Allow configuring additional/public relays so Mode B works.
+- Default to a **local relay**; allow additional/public relays.
 - Distinct signer-dial vs client-dial relay URLs.
+- Prove with a generic NIP-46 client (NDK in tests) before Bitspark wiring.
+
+**Must — product (Bitspark Signer)**
+
+- First-run pairing with Bitspark via `nostrconnect://` on the injected mailbox.
 - Stay usable as the signer for **public** Bitspark (Mode B) without a second protocol.
 
 **Must not (v1)**
 
+- Treat the signer as incomplete until Bitspark is wired.
 - Require third-party signers for Umbrel users.
 - Require `app.nsecbunker.com`.
 - Mix in Lightning / NWC.
@@ -228,6 +246,7 @@ This is a sequence for thinking and building, not a ticket dump.
 
 Write a one-page product contract (this folder can grow into that):
 
+- Base: a complete NIP-46 signer (any client). Product name can still be Bitspark Signer.
 - Umbrel users: Mode A, two apps, done.
 - Public Bitspark users who run our signer: Mode B.
 - Everyone else: any NIP-46 signer in Bitspark (already true).
@@ -236,17 +255,17 @@ Write a one-page product contract (this folder can grow into that):
 
 Do not start from nsecbunkerd issues as the backlog of the Umbrel app.
 
-### 2. Protocol contract with Bitspark
+### 2. Protocol contract, then first client
 
-Treat Bitspark’s current NIP-46 client as the test harness (`nostrconnect` first, `bunker://` fallback, NIP-44, `sign_event:13`, permission list on `connect`).
+Treat a generic NIP-46 client (NDK in tests) as the signer harness (`nostrconnect` first, `bunker://` fallback, NIP-44, `sign_event:13`, permission list on `connect`). Bitspark is the first real client, not the proof that the signer works.
 
-Add a **Mode B** smoke: public (or `npm run preview`) Bitspark in a browser that is *not* pretending to be on localhost-only relay, signer on another host/port, pairing via QR/URI, approve in signer UI.
+Add a **Mode B** product smoke after the signer bar is green: public (or `npm run preview`) Bitspark in a browser that is *not* pretending to be on localhost-only relay, signer on another host/port, pairing via URI, approve in signer UI.
 
 Keep nsecbunkerd around as a known-strict interop target so we do not invent a dialect.
 
 ### 3. Thin signer, own UI
 
-New small daemon (new app or a clean module in this repo — decide when implementing):
+New small daemon (new git root — decided in CONTRACT):
 
 - one encrypted key
 - NIP-46 over configured relays
@@ -267,11 +286,11 @@ Two apps that can install independently:
 - Signer (this)
 - Bitspark (existing SPA)
 
-Same-node discovery for Mode A (how Bitspark finds `nostrconnect`/relay on the box) is part of packaging, not a NIP-46 extension. If discovery is missing, URI paste still works.
+Same-node config injection for Mode A (how Bitspark finds the mailbox/UI on the box) is part of the product layer, not a NIP-46 extension. If injection is missing, URI paste still works.
 
 ### 6. Only then: multi-user / hosted
 
-When we have one identity + client ACL working in A and B:
+When the signer bar is green (one identity + client ACL, NIP-46 over a mailbox) and product Modes A and B work:
 
 - multiple keys in one install (household)
 - Mode C only with an explicit custody decision and admin/ops story we own (not `app.nsecbunker.com`)
