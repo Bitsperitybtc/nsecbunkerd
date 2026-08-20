@@ -25,7 +25,8 @@ Relay config stays two fields: URL the **signer process** dials (often Docker-in
 ## Must — signer (base)
 
 - New implementation in a **new repo**. `nsecbunkerd` is reference and interop target only; do not wrap or migrate its admin/product.
-- Create or import one `nsec`; encrypt at rest; show backup once.
+- Create or import one `nsec` in this UI only; encrypt at rest (**NIP-49**); show backup once on generate. Never put `nsec` in env or compose. Unlock after reboot is **not frozen** — working assumption and alternative: [ARCHITECTURE.md](./ARCHITECTURE.md) §6.
+- Env seeds first boot (data dir, listen, default mailbox dial, log level). After that, UI-persisted `state.json` is source of truth.
 - Separate mailbox key internally; **one identity** in the UI (no two connection strings).
 - Pairing: `nostrconnect` first; `bunker://` fallback.
 - Approve / deny / revoke **clients** in this app’s UI (not `app.nsecbunker.com`, not a Prisma `User` for `/requests`).
@@ -49,6 +50,7 @@ Relay config stays two fields: URL the **signer process** dials (often Docker-in
 - Require `app.nsecbunker.com`, hosted admin RPC, `create_account`, username@domain web-auth, NIP-05 hosting, or policy-token engines.
 - Make local-relay-only the architecture (local is the default, not a lock-in).
 - Treat the daemon as incomplete until Bitspark is wired.
+- Put `nsec` in env, compose, or Docker secrets.
 
 **Product**
 
@@ -64,6 +66,7 @@ Relay config stays two fields: URL the **signer process** dials (often Docker-in
 | Public Bitspark | Copy-link / pending approval **only if** a relay both sides can open is configured | product |
 | QR | Not v1. Later, optional: laptop shows a **LAN URL** so a phone on the same network opens the signer UI. Phone is a remote control, not a second signer | product |
 | Notifications | Signer process subscribed to the mailbox. Not phone push. App stopped → no prompt | signer |
+| Unlock after reboot | **Not frozen.** Working assumption: auto-unlock so quiet signing survives reboot. Alternative: user passphrase (real encryption; signing needs a UI unlock after every restart). Details in ARCHITECTURE §6 | signer |
 | Multi-identity | Not v1. Data model: one key, many approved clients (revoke required) | signer |
 | Hosted keys (old “Mode C”) | **Out.** Other providers exist. Revisit only as a new product decision | product |
 

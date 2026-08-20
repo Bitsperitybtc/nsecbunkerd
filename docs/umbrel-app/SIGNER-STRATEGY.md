@@ -211,7 +211,7 @@ Do not repackage nsecbunkerd and “fix UX” as the plan. The UX problems are t
 
 **Must — signer (base)**
 
-- Generate or import one `nsec`; encrypt at rest; show backup once.
+- Generate or import one `nsec` in this UI only (never env); NIP-49 on disk; show backup once on generate. Unlock after reboot is open (auto vs passphrase) — see ARCHITECTURE §6.
 - Speak NIP-46: `connect`, `get_public_key`, `sign_event` (including kind 13), `nip44_encrypt` / `nip44_decrypt`, `ping`.
 - Pairing via `nostrconnect://`; `bunker://` available.
 - Approve/deny/revoke clients in **this app’s UI** (not a hosted admin SPA).
@@ -237,6 +237,7 @@ Do not repackage nsecbunkerd and “fix UX” as the plan. The UX problems are t
 - Multiple identities per install.
 - Hosted multi-user deployment (Mode C), only if we explicitly accept custody.
 - Optional `auth_url` for clients that are not our UI (other NIP-46 apps).
+- User passphrase unlock after reboot (if we leave auto-unlock as default).
 
 ## Possible plan of approach
 
@@ -297,7 +298,9 @@ When the signer bar is green (one identity + client ACL, NIP-46 over a mailbox) 
 
 ## Open questions
 
-Decided in [CONTRACT.md](./CONTRACT.md): new repo; relays are config (no hosted mailbox); Umbrel env + in-app approve; mailbox key hidden; hosted keys out indefinitely.
+Decided in [CONTRACT.md](./CONTRACT.md): new repo; relays are config (no hosted mailbox); in-app approve; mailbox key hidden; hosted keys out indefinitely.
+
+**Still open:** unlock after reboot — auto-unlock (`wrap.key` on the volume) vs user passphrase (real encryption, signing needs the UI after every restart). Working assumption is auto-unlock for Umbrel enablement. Alternative, implications, and leftover B details: [ARCHITECTURE.md](./ARCHITECTURE.md) §6.
 
 ## Related material in this repo
 
