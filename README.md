@@ -1,52 +1,53 @@
 # nsecbunkerd
 Daemon to remotely sign nostr events using keys.
 
-## Easy setup via docker compose
+For a step-by-step Docker walkthrough, follow the [Quickstart (SETUP-GUIDE.md)](./SETUP-GUIDE.md).
+For the concepts behind it — the signing identity, bunker identity, admin identity, the one-time key
+import step, and advanced/production configuration — see [SETUP-CONCEPTS.md](./SETUP-CONCEPTS.md).
 
-To quickly install `nsecbunkerd` via Docker just run:
+## Easy setup via make
 
-### Configurations
-
-- Prepare your config directory
-
-  ```shell
-  mkdir $HOME/.nsecbunker-config
-  ```
-
-- Clone `.env.example` and add your nostr public key to `ADMIN_NPUBS` to the `.env` file.
-
-- Change `DATABASE_URL` if necessary.
+The `make` targets wrap the whole Docker flow. From the repo root:
 
 ```shell
-cp .env.example .env
+make build     # build the local image (first time only)
+make keygen    # generate a signing identity — SAVE the printed nsec
+make setup     # guided setup: import key, configure, start, create web-auth user
 ```
 
-### Start nsecbunkerd
+`make setup` prompts for the few secrets it needs (admin npub, encryption passphrase, signing nsec,
+web-auth password) and prints your connection strings at the end. For the full walkthrough,
+non-interactive usage, and isolated `local` test stacks, see the
+[Quickstart (SETUP-GUIDE.md)](./SETUP-GUIDE.md).
 
-Create and start the project containers. This runs the migrations and then runs nsecbunkderd container.
+### Daily use (already configured)
+
+If you completed setup once, you only need to start and stop the stack:
 
 ```shell
-# Optionally, build the image locally
-docker compose build nsecbunkerd
-
-# Start the project
-docker compose up
-
-# Or in the background
-docker compose up -d
+make up          # start (default profile, port 3009)
+make down        # stop
+make connection  # print bunker:// URIs again
 ```
 
+Use `PROFILE=local` for a second isolated stack (port 3019). For arbitrary disposable stacks on
+new PCs or for testing, use `make profile-setup NAME=<name>`. See
+[SETUP-GUIDE.md — Already set up?](./SETUP-GUIDE.md#already-set-up-daily-use) for profiles, ports,
+and the full command list.
 
-### Get the connection string
+### Get connection strings
 
 ```shell
-docker compose exec nsecbunkerd cat /app/config/connection.txt
+make connection
+# or directly:
+docker compose exec nsecbunkerd cat /app/config/connection.txt        # NIP-46 signing clients
+docker compose exec nsecbunkerd cat /app/config/admin-connection.txt  # admin / app.nsecbunker.com
 ```
 
-nsecBunker will give you a connection string like:
+nsecBunker will give you a connection string like (NIP-46 `bunker://<hex>?relay=…`):
 
 ```
-bunker://npub1tj2dmc4udvgafxxxxxxxrtgne8j8l6rgrnaykzc8sys9mzfcz@relay.nsecbunker.com
+bunker://<64-hex-remote-signer-pubkey>?relay=wss%3A%2F%2Frelay.example.com%2F
 ```
 
 You can visit https://app.nsecbunker.com/ to administrate your nsecBunker remotely, or explore `nsecbunkerd`'s CLI

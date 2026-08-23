@@ -1,6 +1,20 @@
 version: "3.3"
 
+secrets:
+  signer_identity:
+    # Per-profile signer file (passphrase that unlocks the encrypted keys).
+    # Set via SIGNER_IDENTITY_FILE in profiles/<name>.env; falls back to the default.
+    file: ${SIGNER_IDENTITY_FILE:-./signer-identity.txt}
+
 services:
+  relay:
+    image: scsibug/nostr-rs-relay:latest
+    profiles:
+      - local
+    ports:
+      - "${RELAY_HOST_PORT:-7777}:8080"
+    restart: unless-stopped
+
   nsecbunkerd:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     build: .
@@ -8,25 +22,42 @@ services:
     pids_limit: 100
     mem_limit: 256mb
     memswap_limit: 256mb
+    secrets:
+      - signer_identity
     volumes:
-      - $HOME/.nsecbunker-config:/app/config
+      - ${NSECBUNKER_CONFIG_DIR:-$HOME/.nsecbunker-config}:/app/config
+      - ./scripts:/app/scripts:ro
+    environment:
+      # DB lives on the mounted /app/config volume; this path is constant for Docker.
+      DATABASE_URL: "file:/app/config/nsecbunker.db"
+      # Profile-scoped values from `make` override repo .env when set.
+      NSECBUNKER_KEY_NAME: ${NSECBUNKER_KEY_NAME:-bitspark@local}
+      ADMIN_NPUBS: ${ADMIN_NPUBS:-}
+      DOCKER_UID: ${DOCKER_UID:-1000}
+      DOCKER_GID: ${DOCKER_GID:-1000}
     env_file:
       - .env
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/docker-entrypoint.sh
+    # Host port must match the port in `baseUrl` (see config/nsecbunker.json on the mounted volume).
     ports:
-      - "3000:3000"
+      - "${NSECBUNKER_HOST_PORT:-3009}:3000"
     depends_on:
       - migrations
 
   migrations:
     image: ghcr.io/bitsperitybtc/nsecbunkerd:latest
     volumes:
-      - $HOME/.nsecbunker-config:/app/config
+      - ${NSECBUNKER_CONFIG_DIR:-$HOME/.nsecbunker-config}:/app/config
+      - ./scripts:/app/scripts:ro
+    environment:
+      DATABASE_URL: "file:/app/config/nsecbunker.db"
+      DOCKER_UID: ${DOCKER_UID:-1000}
+      DOCKER_GID: ${DOCKER_GID:-1000}
     env_file:
       - .env
     restart: no
-    entrypoint: ""
-    command:
-      - npx
-      - prisma
-      - migrate
-      - deploy
+    entrypoint:
+      - /bin/sh
+      - /app/scripts/migrate-entrypoint.sh

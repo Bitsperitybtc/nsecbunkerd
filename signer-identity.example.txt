@@ -1,0 +1,7 @@
+# nsecbunkerd local Bitspark signer identity
+# DO NOT COMMIT OR SHARE THIS FILE.
+key_name=<key name, if not default set NSECBUNKER_KEY_NAME in .env>
+npub=<signer public key>
+nsec=<signer secret key>
+pubkey_hex=<signer pub key hex>
+encryption_passphrase=<selected encryption passphrase>
